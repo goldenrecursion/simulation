@@ -176,7 +176,7 @@ class Agent(MesaAgent):
         
     def submitted_triples_available_to_validate(self):
         # returns: array of oldest X triples from submitted_triples queue not yet accepted or rejected where X is determined by remaining staked_tokens
-        return [t for t in self.submitted_triples["pending"]][:self.staked_tokens]
+        return [t for t in self.submitted_triples["pending"]][:int(self.staked_tokens//self.triple_validation_slash)]
     
     # Mesa Step
     def step(self):
