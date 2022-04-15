@@ -9,13 +9,6 @@ services:
     volumes:
       - ./:/opt/simulation/
       - ./sim-logs:/var/log
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
   server:
     build: .
     image: server
