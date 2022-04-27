@@ -42,7 +42,7 @@ sim_configs = {
         "slider", "Triple Validation Slash", 1, 0.01, 10, 0.01
     ),  
     "triple_submission_reward": UserSettableParameter(
-        "slider", "Triple Submission Slash", 5, 0.01, 10, 0.01
+        "slider", "Triple Submission Reward", 5, 0.01, 10, 0.01
     ),  
     "triple_submission_slash": UserSettableParameter(
         "slider", "Triple Submission Slash", 1, 0.01, 10, 0.01
