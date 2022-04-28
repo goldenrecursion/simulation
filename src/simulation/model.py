@@ -80,7 +80,7 @@ class AgentModel(Model):
         self.triple_validation_slash = triple_validation_slash
         self.gt_validation_ratio = gt_validation_ratio
         self.triple_space_size = triple_space_size
-        self.stalled = False  # flag to raise when no agent is doing anything
+        self.stalled_count = 0  # count how many agents did nothing at each step
         sigma = 0.2
 
         # Create and add agents to scheduler
@@ -138,6 +138,10 @@ class AgentModel(Model):
 
 
     def step(self):
+        if self.stalled_count == self.num_agents:
+            print("stalled")
+            return
+        else:
+            self.stalled_count = 0
         self.datacollector.collect(self)
-        self.stalled = True
         self.schedule.step()

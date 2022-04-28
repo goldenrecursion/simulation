@@ -144,7 +144,6 @@ class Agent(MesaAgent):
         self.slashed_validations = []
 
         self.submitted_validations_count = 0
-        self.starved_count = 0
         self.triple_submission_reward = triple_submission_reward
         self.triple_submission_slash = triple_submission_slash
         self.triple_validation_reward = triple_validation_reward
@@ -201,8 +200,8 @@ class Agent(MesaAgent):
         # print(self)
         # can't do anything if out of tokens
         if self.wallet <= 0:
-            self.starved_count += 1
-            print('agent starving!', t_step)
+            self.model.stalled_count += 1
+            # print('agent starving!', t_step)
             return
 
         submit_p = self.validation_rate / (self.submission_rate + self.validation_rate)
@@ -219,6 +218,8 @@ class Agent(MesaAgent):
                 # self.submit_triple(randint(0, self.model.triple_space_size))
                 # you can't do validation now
                 return
+            else:
+                will_submit = False
 
         # Validate triple
         if not(will_submit):
@@ -230,6 +231,7 @@ class Agent(MesaAgent):
             triple = choice(triples) if triples else None
 
             if not triple:
+                self.model.stalled_count += 1
                 return
 
             # Agent will validate triple here
