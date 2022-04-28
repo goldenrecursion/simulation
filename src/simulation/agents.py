@@ -224,9 +224,15 @@ class Agent(MesaAgent):
         # Validate triple
         if not(will_submit):
             # Agent begins validation by retrieving triple from "queue", excluding self
-            triples = np.concatenate([t for t in [a.submitted_triples_available_to_validate() for a in agents if a!=self]]).flat
+            # triples = np.concatenate([t for t in [a.submitted_triples_available_to_validate() for a in agents if a!=self]]).flat
             # Filter triples agent already voted on
-            triples = list(filter(lambda x: (self not in x.accepts) and (self not in x.rejects), triples))
+            # triples = list(filter(lambda x: (self not in x.accepts) and (self not in x.rejects), triples))
+
+            # faster
+            triples = [item for sublist in
+                       [t for t in [a.submitted_triples_available_to_validate() for a in agents if a!=self]]
+                       for item in sublist
+                       if (self not in item.accepts and self not in item.rejects)]
             # pick triple from triples
             triple = choice(triples) if triples else None
 

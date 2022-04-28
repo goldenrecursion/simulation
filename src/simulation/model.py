@@ -136,6 +136,18 @@ class AgentModel(Model):
                 ids.extend(new_ids)
         return set(ids)
 
+    def get_all_triples(self):
+        agents = self.schedule.agents
+        triples = [list(agent.submitted_triples.values()) for agent in agents]
+        triples = [item for sublist in triples for item in sublist]
+        triples = [item for sublist in triples for item in sublist]
+        return triples
+
+    def analyze_triples(self):
+        triples = self.get_all_triples()
+        triples_df = pd.DataFrame([(t._id, t.gt_validated, t.status.name, len(t.accepts), len(t.rejects)) for t in triples], columns=['id', 'gt_validated', 'status', 'accepts', 'rejects'])
+        triples_df['validations'] = triples_df['accepts'] + triples_df['rejects']
+        return triples_df
 
     def step(self):
         if self.stalled_count == self.num_agents:
