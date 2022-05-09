@@ -14,7 +14,7 @@ from mesa import Model
 from mesa.time import RandomActivation
 from mesa.datacollection import DataCollector
 
-from simulation.agents import Agent
+from simulation.agents import Agent, AgentProfile
 
 # Data Collection
 def compute_average_tokens_earned(model):
@@ -64,6 +64,9 @@ class AgentModel(Model):
         triple_validation_slash,
         gt_validation_ratio,
         triple_space_size,
+        number_of_super_agents=0,
+        number_of_validators=0,
+        number_of_colluders=0,
         **kwargs,
     ):
         self.num_agents = number_of_agents
@@ -83,28 +86,100 @@ class AgentModel(Model):
         self.stalled_count = 0  # count how many agents did nothing at each step
         sigma = 0.2
 
+        agent_cnt = 1
         # Create and add agents to scheduler
-        for i in range(self.num_agents):
+        for i in range(self.num_agents - number_of_super_agents - number_of_validators):
             validation_ratio = gauss(self.gt_validation_ratio, sigma)
             if validation_ratio >= 1:
                 validation_ratio = 1
             if validation_ratio <= 0:
                 validation_ratio = 0
-            a = Agent(
-                agent_id=i,
+            ap = AgentProfile(initial_token_amount=self.initial_token_amount,
+                              submission_rate=self.submission_rate,
+                              validation_rate=self.validation_rate,
+                              triple_submission_reward=self.triple_submission_reward,
+                              triple_submission_slash=self.triple_submission_slash,
+                              triple_validation_reward=self.triple_validation_reward,
+                              triple_validation_slash=self.triple_validation_slash,
+                              gt_validation_ratio=validation_ratio)
+            a = Agent.from_agent_profile(
+                agent_id=agent_cnt,
                 model=self,
-                initial_token_amount=self.initial_token_amount,
-                validation_rate=self.validation_rate,
-                submission_rate=self.submission_rate,
-                triple_submission_reward=self.triple_submission_reward,
-                triple_submission_slash=self.triple_submission_slash,
-                triple_validation_reward=self.triple_validation_reward,
-                triple_validation_slash=self.triple_validation_slash,
-                gt_validation_ratio=validation_ratio,  #self.gt_validation_ratio,
-                triple_space_size=self.triple_space_size,
-            )
+                agent_profile=ap,
+                triple_space_size=self.triple_space_size)
             self.schedule.add(a)
+            agent_cnt += 1
 
+        for i in range(number_of_super_agents):
+            validation_ratio = gauss(self.gt_validation_ratio, sigma)
+            if validation_ratio >= 1:
+                validation_ratio = 1
+            if validation_ratio <= 0:
+                validation_ratio = 0
+            ap = AgentProfile(initial_token_amount=self.initial_token_amount,
+                              submission_rate=self.submission_rate,
+                              validation_rate=1000000,
+                              triple_submission_reward=self.triple_submission_reward,
+                              triple_submission_slash=self.triple_submission_slash,
+                              triple_validation_reward=self.triple_validation_reward,
+                              triple_validation_slash=self.triple_validation_slash,
+                              gt_validation_ratio=validation_ratio)
+            a = Agent.from_agent_profile(
+                agent_id=agent_cnt,
+                model=self,
+                agent_profile=ap,
+                triple_space_size=self.triple_space_size)
+
+            self.schedule.add(a)
+            agent_cnt += 1
+
+        for i in range(number_of_validators):
+            validation_ratio = gauss(self.gt_validation_ratio, sigma)
+            if validation_ratio >= 1:
+                validation_ratio = 1
+            if validation_ratio <= 0:
+                validation_ratio = 0
+            ap = AgentProfile(initial_token_amount=self.initial_token_amount,
+                              submission_rate=1000000,
+                              validation_rate=1,
+                              triple_submission_reward=self.triple_submission_reward,
+                              triple_submission_slash=self.triple_submission_slash,
+                              triple_validation_reward=self.triple_validation_reward,
+                              triple_validation_slash=self.triple_validation_slash,
+                              gt_validation_ratio=validation_ratio)
+            a = Agent.from_agent_profile(
+                agent_id=agent_cnt,
+                model=self,
+                agent_profile=ap,
+                triple_space_size=self.triple_space_size)
+            self.schedule.add(a)
+            agent_cnt += 1
+
+        for i in range(number_of_colluders):
+            validation_ratio = gauss(self.gt_validation_ratio / 2, sigma * 3)
+            if validation_ratio >= 1:
+                validation_ratio = 1
+            if validation_ratio <= 0:
+                validation_ratio = 0
+            ap = AgentProfile(initial_token_amount=self.initial_token_amount,
+                              submission_rate=1,
+                              validation_rate=1,
+                              triple_submission_reward=self.triple_submission_reward,
+                              triple_submission_slash=self.triple_submission_slash,
+                              triple_validation_reward=self.triple_validation_reward,
+                              triple_validation_slash=self.triple_validation_slash,
+                              gt_validation_ratio=validation_ratio,
+                              is_colluder=True)
+            a = Agent.from_agent_profile(
+                agent_id=agent_cnt,
+                model=self,
+                agent_profile=ap,
+                triple_space_size=self.triple_space_size)
+            self.schedule.add(a)
+            agent_cnt += 1            
+
+            agents = self.schedule.agents
+            self.colluder_dict = {a.agent_id:a.is_colluder for a in agents}
         # Data collector
         model_reporters = {
             "Average Tokens Earned": compute_average_tokens_earned,
@@ -143,15 +218,36 @@ class AgentModel(Model):
         triples = [item for sublist in triples for item in sublist]
         return triples
 
+    def get_pending_triples(self):
+        agents = self.schedule.agents
+        triples = [list(agent.submitted_triples.values()) for agent in agents]
+        triples = [item for sublist in triples for item in sublist]
+        triples = [item for sublist in triples for item in sublist]
+        triples = [t for t in triples if t.status.name == 'PENDING']
+        return triples
+
     def analyze_triples(self):
         triples = self.get_all_triples()
         triples_df = pd.DataFrame([(t._id, t.gt_validated, t.status.name, len(t.accepts), len(t.rejects)) for t in triples], columns=['id', 'gt_validated', 'status', 'accepts', 'rejects'])
         triples_df['validations'] = triples_df['accepts'] + triples_df['rejects']
         return triples_df
 
+    def calculate_agents_reputation(self):
+        agents = self.schedule.agents
+        # triples = self.get_all_triples()
+        results = []
+        for a in agents:
+            validation_count = len(a.rewarded_validations) + len(a.slashed_validations)
+            if validation_count > 0:
+                results.append((a.agent_id, a.gt_validation_ratio, len(a.rewarded_validations)/validation_count))
+            else:
+                results.append((a.agent_id, a.gt_validation_ratio, None))
+        results = pd.DataFrame(results, columns=['agent_id', 'gt_validation_ratio', 'reputation_estimation'])
+        return results
+
     def step(self):
+        t_step = self.schedule.steps
         if self.stalled_count == self.num_agents:
-            print("stalled")
             return
         else:
             self.stalled_count = 0
