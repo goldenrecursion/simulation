@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.0-devel-ubuntu20.04
+FROM nvidia/cuda:11.0.3-devel-ubuntu20.04
 
 # Set lang
 ENV LC_ALL C.UTF-8
@@ -22,9 +22,14 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install python 3.8
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Rotating Keys
+RUN rm /etc/apt/sources.list.d/cuda.list
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     git \
+    curl \
     git-lfs \
     ssh \
     python3.8 \
